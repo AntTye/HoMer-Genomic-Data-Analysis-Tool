@@ -1,0 +1,179 @@
+def getFamilyDonor(content):
+   content = "".join(content)
+   getFamily = content.split("Gene Family: ")                # get the geneFamily by splitting it at the gene family so first one is at index 1
+   geneFamilyArr = []                                        #arr to store family numbers
+   for i in range(1, len(getFamily), 2):                     # start at 1 and count by 2 until length of getfamily is achieved
+      geneFamilyArr.append(str(getFamily[i]).split(" -")[0]) #add that to the gene family   
+   return geneFamilyArr  
+
+def getMultiContig(content):
+   splitthat = content.split("\n")  # split lines
+   contigBlock = [[]]               # start with one empty block
+   currBlock = 0
+   for i in range(3, len(splitthat)):
+      if splitthat[i].strip() == "":
+         currBlock += 1
+         contigBlock.append([])  # adds the new block
+         continue
+      contigBlock[currBlock].append(splitthat[i])
+   return contigBlock[:-2]
+
+def getEachContigDonor(content):
+   contigBlock = [] # 4 contigs in content [[1,2,3],[],[],[]]
+
+   for contig in content:
+      currBlock = []
+      for line in contig:
+         currBlock += getFamilyDonor (line)
+      contigBlock.append(currBlock)
+   return contigBlock
+
+
+def look_specific_contig(filepath, donorFamilyList):
+   with open (filepath, 'r') as f:
+      content = f.read()
+   lines = (content.split("\n"))
+   contigLines = []
+   
+   frontParseFix = []
+
+   for i in range(len(donorFamilyList)):
+      currentDonor = ""
+      for j in range(len(donorFamilyList[i])):
+         currentDonor = ":" + donorFamilyList[i][j] + "\t"
+         frontParseFix.append(currentDonor)
+   
+   for contig in donorFamilyList:
+      
+      startAcc = False
+      acceptedLines = ""
+
+      for line in lines:
+         if startAcc == True:
+            acceptedLines += line
+
+         if startAcc == False:
+            if any(element in line for element in frontParseFix) or all(element in line for element in frontParseFix):
+               acceptedLines += line
+               startAcc = True
+         
+         if all(element in acceptedLines for element in contig):
+            break
+
+      startAcc = False
+      contigLines.append(acceptedLines)
+   print (len(contigLines))
+
+   return (contigLines) #contigLines
+
+
+#recipientPath = "AeromonasDataset\Genomes\AhydrophilaPAQ09101421.synteny"
+
+
+
+
+def parse_file_big (listOfLines, donorFamilyList):   
+   #sort the donorfamilylist into odd and even amounts, index wrong
+   #######
+   print(len(donorFamilyList))
+   
+   contigClassification = [] #end results
+   specificDonor = 0
+
+   for contigLine in listOfLines:
+      classification = parseContigLine(contigLine,donorFamilyList[specificDonor])
+      #print("split done")
+      contigClassification.append(classification)
+      specificDonor += 1
+   return contigClassification
+
+def parseContigLine(contigLine, donorFamilyList): #singular line, array of numbers for contig
+   longestStart = ""
+   frontParseFix = []
+   for i in range(len(donorFamilyList)):
+      currentDonor = ":" + donorFamilyList[i]
+      frontParseFix.append(currentDonor)
+      
+   for i in range(len(donorFamilyList)):                             
+      splitted = contigLine.split(donorFamilyList[i])[0] + donorFamilyList[i]       
+      if len(splitted) > len(longestStart):
+         longestStart = splitted
+   shortestStart = longestStart
+
+   catchCurr = []
+   for i in range(len(donorFamilyList)):
+      catchCurr.append(frontParseFix[i])
+
+      if all(element in splitted for element in catchCurr):
+         split_result = longestStart.split(frontParseFix[i])
+         if len(split_result) > 1:
+               splitted = donorFamilyList[i] + split_result[1]
+
+      if len(shortestStart) > len(splitted):
+         if all(element in splitted for element in donorFamilyList):
+               shortestStart = splitted
+
+   
+   recipientFamilyList = getRecipientDonor(shortestStart) #get array of recipient genes
+
+   result = checkSymmetry(recipientFamilyList,donorFamilyList)
+   start = result[1]
+   end = result[2] + 1
+   fullReturn = [result[0], donorFamilyList, recipientFamilyList[start: end]]
+   print(fullReturn[-1])
+   return (fullReturn)
+
+def checkSymmetry(recipientFamilyList, donorFamilyList):
+   positions = []
+   for donor in donorFamilyList:
+      index = 0
+      for recipient in recipientFamilyList:
+         if donor == recipient:
+            positions.append(index)
+         index += 1
+   sortedPos = sorted(positions)
+   print(sortedPos, sortedPos[-1])
+   if sortedPos == positions:
+      return ["Reversed", sortedPos[0], sortedPos[-1]]
+   if sortedPos == positions[::-1]:
+      return ["In Order", sortedPos[0], sortedPos[-1]]
+   return ["Different", sortedPos[0], sortedPos[-1]]
+
+def getRecipientDonor (context):
+   listcontext = context.split(":")
+   splitAt = []
+
+   for i in range(0, len(listcontext), 3):
+      splitAt.append(listcontext[i])
+   for i in range(len(splitAt)):
+      stripyou = splitAt[i].split("\t")[0]
+      splitAt[i] = stripyou
+   return splitAt
+
+
+
+
+
+
+#multi = "Donor: AsobriaJG2080, Recipient: AsobriaARS14514\nNumber of nodes between AsobriaJG2080 and AsobriaARS14514: 3.0\n \nContig: 4, Gene Number: 133, Gene Name: 2189, Gene Family: 14011 -----\u003e Contig: 10, Gene Number: 128, Gene Name: 347, Gene Family: 14011\nContig: 4, Gene Number: 134, Gene Name: 2190, Gene Family: 17253 -----\u003e Contig: 10, Gene Number: 129, Gene Name: 348, Gene Family: 17253\nContig: 4, Gene Number: 136, Gene Name: 2192, Gene Family: 7283 -----\u003e Contig: 24, Gene Number: 2, Gene Name: 1504, Gene Family: 7283\n \nNumber of transfers in HMGT 1 = 3\n \nTotal number of HMGTs = 1\nTotal number of genes in HMGTs for this pair = 3\nTotal number of HGTs for this pair = 54\n_______________________________________________________________________"
+#multi = "Donor: AveroniiAK227, Recipient: AspAMC34\nNumber of nodes between AveroniiAK227 and AspAMC34: 10.0\n \nContig: 26, Gene Number: 54, Gene Name: 1421, Gene Family: 22439 -----\u003e Contig: 1, Gene Number: 1486, Gene Name: 645, Gene Family: 22439\nContig: 26, Gene Number: 55, Gene Name: 1422, Gene Family: 4660 -----\u003e Contig: 1, Gene Number: 1487, Gene Name: 646, Gene Family: 4660\nContig: 26, Gene Number: 56, Gene Name: 1423, Gene Family: 16450 -----\u003e Contig: 1, Gene Number: 1488, Gene Name: 647, Gene Family: 16450\n \nContig: 6, Gene Number: 165, Gene Name: 3362, Gene Family: 6279 -----\u003e Contig: 1, Gene Number: 3646, Gene Name: 3084, Gene Family: 6279\nContig: 6, Gene Number: 167, Gene Name: 3364, Gene Family: 7955 -----\u003e Contig: 1, Gene Number: 3648, Gene Name: 3086, Gene Family: 7955\nContig: 6, Gene Number: 168, Gene Name: 3365, Gene Family: 4317 -----\u003e Contig: 1, Gene Number: 3649, Gene Name: 3087, Gene Family: 4317\n \nContig: 8, Gene Number: 297, Gene Name: 3873, Gene Family: 4642 -----\u003e Contig: 1, Gene Number: 2069, Gene Name: 1261, Gene Family: 4642\nContig: 8, Gene Number: 298, Gene Name: 3874, Gene Family: 20604 -----\u003e Contig: 1, Gene Number: 2068, Gene Name: 1260, Gene Family: 20604\nContig: 8, Gene Number: 299, Gene Name: 3875, Gene Family: 13951 -----\u003e Contig: 1, Gene Number: 2067, Gene Name: 1259, Gene Family: 13951\n \nNumber of transfers in HMGT 1 = 3\nNumber of transfers in HMGT 2 = 3\nNumber of transfers in HMGT 3 = 3\n \nTotal number of HMGTs = 3\nTotal number of genes in HMGTs for this pair = 9\nTotal number of HGTs for this pair = 112\n_______________________________________________________________________"
+#multi = "Donor: AveroniiB565, Recipient: AveroniibvsobriaCECT4257T\nNumber of nodes between AveroniiB565 and AveroniibvsobriaCECT4257T: 2.0\n \nContig: 1, Gene Number: 19, Gene Name: 19, Gene Family: 5084 -----\u003e Contig: 19, Gene Number: 61, Gene Name: 1119, Gene Family: 5084\nContig: 1, Gene Number: 20, Gene Name: 20, Gene Family: 20010 -----\u003e Contig: 19, Gene Number: 62, Gene Name: 1120, Gene Family: 20010\nContig: 1, Gene Number: 21, Gene Name: 21, Gene Family: 14779 -----\u003e Contig: 19, Gene Number: 63, Gene Name: 1121, Gene Family: 14779\nContig: 1, Gene Number: 22, Gene Name: 22, Gene Family: 13922 -----\u003e Contig: 19, Gene Number: 64, Gene Name: 1122, Gene Family: 13922\n \nContig: 1, Gene Number: 557, Gene Name: 571, Gene Family: 10935 -----\u003e Contig: 20, Gene Number: 43, Gene Name: 1395, Gene Family: 10935\nContig: 1, Gene Number: 559, Gene Name: 573, Gene Family: 6324 -----\u003e Contig: 20, Gene Number: 42, Gene Name: 1394, Gene Family: 6324\nContig: 1, Gene Number: 561, Gene Name: 575, Gene Family: 21845 -----\u003e Contig: 20, Gene Number: 39, Gene Name: 1391, Gene Family: 21845\nContig: 1, Gene Number: 562, Gene Name: 576, Gene Family: 19522 -----\u003e Contig: 20, Gene Number: 38, Gene Name: 1390, Gene Family: 19522\n \nContig: 1, Gene Number: 581, Gene Name: 597, Gene Family: 8361 -----\u003e Contig: 20, Gene Number: 20, Gene Name: 1370, Gene Family: 8361\nContig: 1, Gene Number: 583, Gene Name: 599, Gene Family: 22058 -----\u003e Contig: 20, Gene Number: 18, Gene Name: 1368, Gene Family: 22058\nContig: 1, Gene Number: 584, Gene Name: 600, Gene Family: 19813 -----\u003e Contig: 20, Gene Number: 17, Gene Name: 1367, Gene Family: 19813\n \nContig: 1, Gene Number: 646, Gene Name: 666, Gene Family: 22162 -----\u003e Contig: 12, Gene Number: 52, Gene Name: 359, Gene Family: 22162\nContig: 1, Gene Number: 647, Gene Name: 667, Gene Family: 8409 -----\u003e Contig: 12, Gene Number: 51, Gene Name: 358, Gene Family: 8409\nContig: 1, Gene Number: 649, Gene Name: 669, Gene Family: 6937 -----\u003e Contig: 12, Gene Number: 49, Gene Name: 356, Gene Family: 6937\nContig: 1, Gene Number: 651, Gene Name: 671, Gene Family: 19387 -----\u003e Contig: 12, Gene Number: 47, Gene Name: 354, Gene Family: 19387\n \nContig: 1, Gene Number: 744, Gene Name: 767, Gene Family: 15697 -----\u003e Contig: 21, Gene Number: 46, Gene Name: 1562, Gene Family: 15697\nContig: 1, Gene Number: 745, Gene Name: 768, Gene Family: 22055 -----\u003e Contig: 21, Gene Number: 45, Gene Name: 1561, Gene Family: 22055\nContig: 1, Gene Number: 746, Gene Name: 769, Gene Family: 313 -----\u003e Contig: 21, Gene Number: 44, Gene Name: 1560, Gene Family: 313\nContig: 1, Gene Number: 748, Gene Name: 771, Gene Family: 14880 -----\u003e Contig: 21, Gene Number: 42, Gene Name: 1558, Gene Family: 14880\n \nContig: 1, Gene Number: 871, Gene Name: 899, Gene Family: 9166 -----\u003e Contig: 5, Gene Number: 70, Gene Name: 3110, Gene Family: 9166\nContig: 1, Gene Number: 873, Gene Name: 901, Gene Family: 4892 -----\u003e Contig: 5, Gene Number: 72, Gene Name: 3112, Gene Family: 4892\nContig: 1, Gene Number: 874, Gene Name: 902, Gene Family: 17771 -----\u003e Contig: 5, Gene Number: 73, Gene Name: 3113, Gene Family: 17771\nContig: 1, Gene Number: 876, Gene Name: 904, Gene Family: 9044 -----\u003e Contig: 5, Gene Number: 75, Gene Name: 3115, Gene Family: 9044\n \nContig: 1, Gene Number: 1335, Gene Name: 1378, Gene Family: 5609 -----\u003e Contig: 18, Gene Number: 4, Gene Name: 891, Gene Family: 5609\nContig: 1, Gene Number: 1337, Gene Name: 1380, Gene Family: 6548 -----\u003e Contig: 18, Gene Number: 6, Gene Name: 893, Gene Family: 6548\nContig: 1, Gene Number: 1338, Gene Name: 1381, Gene Family: 17617 -----\u003e Contig: 18, Gene Number: 7, Gene Name: 894, Gene Family: 17617\n \nContig: 1, Gene Number: 1554, Gene Name: 1604, Gene Family: 15252 -----\u003e Contig: 14, Gene Number: 9, Gene Name: 569, Gene Family: 15252\nContig: 1, Gene Number: 1555, Gene Name: 1605, Gene Family: 992 -----\u003e Contig: 14, Gene Number: 8, Gene Name: 568, Gene Family: 992\nContig: 1, Gene Number: 1557, Gene Name: 1607, Gene Family: 5107 -----\u003e Contig: 14, Gene Number: 6, Gene Name: 566, Gene Family: 5107\n \nContig: 1, Gene Number: 1936, Gene Name: 1999, Gene Family: 3177 -----\u003e Contig: 1, Gene Number: 87, Gene Name: 89, Gene Family: 3177\nContig: 1, Gene Number: 1938, Gene Name: 2001, Gene Family: 1118 -----\u003e Contig: 1, Gene Number: 85, Gene Name: 87, Gene Family: 1118\nContig: 1, Gene Number: 1939, Gene Name: 2002, Gene Family: 14423 -----\u003e Contig: 1, Gene Number: 84, Gene Name: 86, Gene Family: 14423\nContig: 1, Gene Number: 1940, Gene Name: 2003, Gene Family: 13637 -----\u003e Contig: 1, Gene Number: 83, Gene Name: 85, Gene Family: 13637\n \nContig: 1, Gene Number: 2514, Gene Name: 2595, Gene Family: 3109 -----\u003e Contig: 3, Gene Number: 219, Gene Name: 2156, Gene Family: 3109\nContig: 1, Gene Number: 2515, Gene Name: 2596, Gene Family: 4604 -----\u003e Contig: 3, Gene Number: 218, Gene Name: 2155, Gene Family: 4604\nContig: 1, Gene Number: 2516, Gene Name: 2598, Gene Family: 16021 -----\u003e Contig: 3, Gene Number: 217, Gene Name: 2153, Gene Family: 16021\n \nContig: 1, Gene Number: 2900, Gene Name: 2997, Gene Family: 8028 -----\u003e Contig: 4, Gene Number: 71, Gene Name: 2577, Gene Family: 8028\nContig: 1, Gene Number: 2901, Gene Name: 2998, Gene Family: 13601 -----\u003e Contig: 4, Gene Number: 72, Gene Name: 2578, Gene Family: 13601\nContig: 1, Gene Number: 2903, Gene Name: 3000, Gene Family: 20610 -----\u003e Contig: 4, Gene Number: 74, Gene Name: 2580, Gene Family: 20610\n \nContig: 1, Gene Number: 3677, Gene Name: 3798, Gene Family: 15914 -----\u003e Contig: 23, Gene Number: 99, Gene Name: 1685, Gene Family: 15914\nContig: 1, Gene Number: 3679, Gene Name: 3800, Gene Family: 4274 -----\u003e Contig: 23, Gene Number: 97, Gene Name: 1683, Gene Family: 4274\nContig: 1, Gene Number: 3680, Gene Name: 3801, Gene Family: 23085 -----\u003e Contig: 23, Gene Number: 96, Gene Name: 1682, Gene Family: 23085\n \nContig: 1, Gene Number: 3765, Gene Name: 3890, Gene Family: 18762 -----\u003e Contig: 23, Gene Number: 10, Gene Name: 1591, Gene Family: 18762\nContig: 1, Gene Number: 3767, Gene Name: 3892, Gene Family: 21692 -----\u003e Contig: 23, Gene Number: 8, Gene Name: 1589, Gene Family: 21692\nContig: 1, Gene Number: 3768, Gene Name: 3893, Gene Family: 22511 -----\u003e Contig: 23, Gene Number: 7, Gene Name: 1588, Gene Family: 22511\nContig: 1, Gene Number: 3769, Gene Name: 3894, Gene Family: 4598 -----\u003e Contig: 23, Gene Number: 6, Gene Name: 1587, Gene Family: 4598\n \nContig: 1, Gene Number: 3880, Gene Name: 4018, Gene Family: 19041 -----\u003e Contig: 9, Gene Number: 55, Gene Name: 4066, Gene Family: 19041\nContig: 1, Gene Number: 3881, Gene Name: 4019, Gene Family: 20515 -----\u003e Contig: 9, Gene Number: 56, Gene Name: 4067, Gene Family: 20515\nContig: 1, Gene Number: 3883, Gene Name: 4021, Gene Family: 17561 -----\u003e Contig: 9, Gene Number: 58, Gene Name: 4069, Gene Family: 17561\n \nNumber of transfers in HMGT 1 = 4\nNumber of transfers in HMGT 2 = 4\nNumber of transfers in HMGT 3 = 3\nNumber of transfers in HMGT 4 = 4\nNumber of transfers in HMGT 5 = 4\nNumber of transfers in HMGT 6 = 4\nNumber of transfers in HMGT 7 = 3\nNumber of transfers in HMGT 8 = 3\nNumber of transfers in HMGT 9 = 4\nNumber of transfers in HMGT 10 = 3\nNumber of transfers in HMGT 11 = 3\nNumber of transfers in HMGT 12 = 3\nNumber of transfers in HMGT 13 = 4\nNumber of transfers in HMGT 14 = 3\n \nTotal number of HMGTs = 14\nTotal number of genes in HMGTs for this pair = 49\nTotal number of HGTs for this pair = 477\n_______________________________________________________________________"
+#multi = "Donor: Asobria2014105092720, Recipient: AallosaccharophilaCECT4199T\nNumber of nodes between Asobria2014105092720 and AallosaccharophilaCECT4199T: 5.0\n \nContig: 9, Gene Number: 15, Gene Name: 3919, Gene Family: 601 -----\u003e Contig: 36, Gene Number: 39, Gene Name: 2010, Gene Family: 601\nContig: 9, Gene Number: 16, Gene Name: 3920, Gene Family: 10569 -----\u003e Contig: 36, Gene Number: 40, Gene Name: 2011, Gene Family: 10569\nContig: 9, Gene Number: 18, Gene Name: 3922, Gene Family: 13112 -----\u003e Contig: 36, Gene Number: 41, Gene Name: 2013, Gene Family: 13112\n \nNumber of transfers in HMGT 1 = 3\n \nTotal number of HMGTs = 1\nTotal number of genes in HMGTs for this pair = 3\nTotal number of HGTs for this pair = 7\n_______________________________________________________________________"
+#multi = "Donor: AmediaBAQ071013132, Recipient: AmediaCECT4232T\nNumber of nodes between AmediaBAQ071013132 and AmediaCECT4232T: 3.0\n \nContig: 102, Gene Number: 5, Gene Name: 180, Gene Family: 11869 -----\u003e Contig: 125, Gene Number: 5, Gene Name: 796, Gene Family: 11869\nContig: 102, Gene Number: 6, Gene Name: 181, Gene Family: 14426 -----\u003e Contig: 125, Gene Number: 6, Gene Name: 797, Gene Family: 14426\nContig: 102, Gene Number: 7, Gene Name: 182, Gene Family: 5454 -----\u003e Contig: 125, Gene Number: 7, Gene Name: 798, Gene Family: 5454\n \nContig: 26, Gene Number: 20, Gene Name: 1243, Gene Family: 4753 -----\u003e Contig: 123, Gene Number: 16, Gene Name: 773, Gene Family: 4753\nContig: 26, Gene Number: 22, Gene Name: 1245, Gene Family: 2820 -----\u003e Contig: 123, Gene Number: 14, Gene Name: 771, Gene Family: 2820\nContig: 26, Gene Number: 24, Gene Name: 1247, Gene Family: 2405 -----\u003e Contig: 123, Gene Number: 12, Gene Name: 769, Gene Family: 2405\nContig: 26, Gene Number: 25, Gene Name: 1248, Gene Family: 5029 -----\u003e Contig: 123, Gene Number: 11, Gene Name: 768, Gene Family: 5029\nContig: 26, Gene Number: 26, Gene Name: 1249, Gene Family: 22013 -----\u003e Contig: 123, Gene Number: 10, Gene Name: 767, Gene Family: 22013\nContig: 26, Gene Number: 28, Gene Name: 1251, Gene Family: 7232 -----\u003e Contig: 123, Gene Number: 8, Gene Name: 765, Gene Family: 7232\n \nContig: 38, Gene Number: 70, Gene Name: 2081, Gene Family: 1757 -----\u003e Contig: 137, Gene Number: 7, Gene Name: 923, Gene Family: 1757\nContig: 38, Gene Number: 71, Gene Name: 2082, Gene Family: 4993 -----\u003e Contig: 137, Gene Number: 8, Gene Name: 924, Gene Family: 4993\nContig: 38, Gene Number: 72, Gene Name: 2083, Gene Family: 1234 -----\u003e Contig: 137, Gene Number: 9, Gene Name: 925, Gene Family: 1234\n \nContig: 39, Gene Number: 4, Gene Name: 2093, Gene Family: 9009 -----\u003e Contig: 32, Gene Number: 7, Gene Name: 2035, Gene Family: 9009\nContig: 39, Gene Number: 5, Gene Name: 2094, Gene Family: 9726 -----\u003e Contig: 32, Gene Number: 6, Gene Name: 2034, Gene Family: 9726\nContig: 39, Gene Number: 6, Gene Name: 2095, Gene Family: 3888 -----\u003e Contig: 32, Gene Number: 5, Gene Name: 2033, Gene Family: 3888\n \nContig: 39, Gene Number: 15, Gene Name: 2106, Gene Family: 22160 -----\u003e Contig: 111, Gene Number: 5, Gene Name: 440, Gene Family: 22160\nContig: 39, Gene Number: 16, Gene Name: 2107, Gene Family: 98 -----\u003e Contig: 111, Gene Number: 6, Gene Name: 441, Gene Family: 98\nContig: 39, Gene Number: 17, Gene Name: 2108, Gene Family: 5305 -----\u003e Contig: 111, Gene Number: 7, Gene Name: 442, Gene Family: 5305\nContig: 39, Gene Number: 18, Gene Name: 2109, Gene Family: 16089 -----\u003e Contig: 111, Gene Number: 8, Gene Name: 443, Gene Family: 16089\nContig: 39, Gene Number: 20, Gene Name: 2111, Gene Family: 14836 -----\u003e Contig: 111, Gene Number: 10, Gene Name: 445, Gene Family: 14836\nContig: 39, Gene Number: 21, Gene Name: 2112, Gene Family: 15664 -----\u003e Contig: 111, Gene Number: 11, Gene Name: 446, Gene Family: 15664\n \nContig: 45, Gene Number: 6, Gene Name: 2525, Gene Family: 18589 -----\u003e Contig: 18, Gene Number: 5, Gene Name: 1386, Gene Family: 18589\nContig: 45, Gene Number: 8, Gene Name: 2527, Gene Family: 22143 -----\u003e Contig: 18, Gene Number: 7, Gene Name: 1388, Gene Family: 22143\nContig: 45, Gene Number: 9, Gene Name: 2528, Gene Family: 5309 -----\u003e Contig: 18, Gene Number: 8, Gene Name: 1389, Gene Family: 5309\n \nContig: 55, Gene Number: 13, Gene Name: 2857, Gene Family: 9674 -----\u003e Contig: 29, Gene Number: 12, Gene Name: 1965, Gene Family: 9674\nContig: 55, Gene Number: 14, Gene Name: 2858, Gene Family: 4266 -----\u003e Contig: 29, Gene Number: 11, Gene Name: 1964, Gene Family: 4266\nContig: 55, Gene Number: 16, Gene Name: 2860, Gene Family: 12364 -----\u003e Contig: 29, Gene Number: 9, Gene Name: 1962, Gene Family: 12364\n \nContig: 64, Gene Number: 44, Gene Name: 3230, Gene Family: 19529 -----\u003e Contig: 19, Gene Number: 49, Gene Name: 1615, Gene Family: 19529\nContig: 64, Gene Number: 45, Gene Name: 3231, Gene Family: 5686 -----\u003e Contig: 19, Gene Number: 50, Gene Name: 1616, Gene Family: 5686\nContig: 64, Gene Number: 47, Gene Name: 3233, Gene Family: 13290 -----\u003e Contig: 19, Gene Number: 52, Gene Name: 1618, Gene Family: 13290\n \nNumber of transfers in HMGT 1 = 3\nNumber of transfers in HMGT 2 = 6\nNumber of transfers in HMGT 3 = 3\nNumber of transfers in HMGT 4 = 3\nNumber of transfers in HMGT 5 = 6\nNumber of transfers in HMGT 6 = 3\nNumber of transfers in HMGT 7 = 3\nNumber of transfers in HMGT 8 = 3\n \nTotal number of HMGTs = 8\nTotal number of genes in HMGTs for this pair = 30\nTotal number of HGTs for this pair = 76\n_______________________________________________________________________"
+multi = "Donor: AveroniiG3C1, Recipient: AveroniiHm21\nNumber of nodes between AveroniiG3C1 and AveroniiHm21: 8.0\n \nContig: 10, Gene Number: 82, Gene Name: 240, Gene Family: 1064 -----\u003e Contig: 1, Gene Number: 2600, Gene Name: 2784, Gene Family: 1064\nContig: 10, Gene Number: 83, Gene Name: 241, Gene Family: 544 -----\u003e Contig: 1, Gene Number: 2601, Gene Name: 2785, Gene Family: 544\nContig: 10, Gene Number: 84, Gene Name: 242, Gene Family: 12217 -----\u003e Contig: 1, Gene Number: 2602, Gene Name: 2786, Gene Family: 12217\n \nContig: 10, Gene Number: 112, Gene Name: 270, Gene Family: 14925 -----\u003e Contig: 1, Gene Number: 2629, Gene Name: 2814, Gene Family: 14925\nContig: 10, Gene Number: 113, Gene Name: 271, Gene Family: 6346 -----\u003e Contig: 1, Gene Number: 2630, Gene Name: 2815, Gene Family: 6346\nContig: 10, Gene Number: 115, Gene Name: 273, Gene Family: 1684 -----\u003e Contig: 1, Gene Number: 2632, Gene Name: 2817, Gene Family: 1684\nContig: 10, Gene Number: 117, Gene Name: 275, Gene Family: 11883 -----\u003e Contig: 1, Gene Number: 2634, Gene Name: 2819, Gene Family: 11883\nContig: 10, Gene Number: 118, Gene Name: 276, Gene Family: 4691 -----\u003e Contig: 1, Gene Number: 2635, Gene Name: 2820, Gene Family: 4691\n \nContig: 13, Gene Number: 63, Gene Name: 574, Gene Family: 16466 -----\u003e Contig: 1, Gene Number: 785, Gene Name: 848, Gene Family: 16466\nContig: 13, Gene Number: 64, Gene Name: 575, Gene Family: 11481 -----\u003e Contig: 1, Gene Number: 784, Gene Name: 847, Gene Family: 11481\nContig: 13, Gene Number: 65, Gene Name: 576, Gene Family: 6817 -----\u003e Contig: 1, Gene Number: 783, Gene Name: 846, Gene Family: 6817\n \nContig: 13, Gene Number: 88, Gene Name: 600, Gene Family: 3642 -----\u003e Contig: 1, Gene Number: 760, Gene Name: 822, Gene Family: 3642\nContig: 13, Gene Number: 89, Gene Name: 602, Gene Family: 14541 -----\u003e Contig: 1, Gene Number: 759, Gene Name: 820, Gene Family: 14541\nContig: 13, Gene Number: 90, Gene Name: 603, Gene Family: 14178 -----\u003e Contig: 1, Gene Number: 758, Gene Name: 819, Gene Family: 14178\n \nContig: 16, Gene Number: 33, Gene Name: 887, Gene Family: 20536 -----\u003e Contig: 1, Gene Number: 2986, Gene Name: 3187, Gene Family: 20536\nContig: 16, Gene Number: 34, Gene Name: 888, Gene Family: 4901 -----\u003e Contig: 1, Gene Number: 2987, Gene Name: 3188, Gene Family: 4901\nContig: 16, Gene Number: 35, Gene Name: 889, Gene Family: 22098 -----\u003e Contig: 1, Gene Number: 2988, Gene Name: 3189, Gene Family: 22098\nContig: 16, Gene Number: 36, Gene Name: 890, Gene Family: 11568 -----\u003e Contig: 1, Gene Number: 2989, Gene Name: 3190, Gene Family: 11568\n \nContig: 16, Gene Number: 69, Gene Name: 924, Gene Family: 3131 -----\u003e Contig: 1, Gene Number: 3022, Gene Name: 3224, Gene Family: 3131\nContig: 16, Gene Number: 70, Gene Name: 925, Gene Family: 13357 -----\u003e Contig: 1, Gene Number: 3023, Gene Name: 3225, Gene Family: 13357\nContig: 16, Gene Number: 71, Gene Name: 926, Gene Family: 13433 -----\u003e Contig: 1, Gene Number: 3024, Gene Name: 3226, Gene Family: 13433\nContig: 16, Gene Number: 73, Gene Name: 928, Gene Family: 20513 -----\u003e Contig: 1, Gene Number: 3026, Gene Name: 3228, Gene Family: 20513\nContig: 16, Gene Number: 75, Gene Name: 930, Gene Family: 13855 -----\u003e Contig: 1, Gene Number: 3028, Gene Name: 3230, Gene Family: 13855\n \nContig: 16, Gene Number: 154, Gene Name: 1009, Gene Family: 3745 -----\u003e Contig: 1, Gene Number: 3098, Gene Name: 3303, Gene Family: 3745\nContig: 16, Gene Number: 155, Gene Name: 1010, Gene Family: 8203 -----\u003e Contig: 1, Gene Number: 3099, Gene Name: 3304, Gene Family: 8203\nContig: 16, Gene Number: 156, Gene Name: 1011, Gene Family: 11771 -----\u003e Contig: 1, Gene Number: 3100, Gene Name: 3305, Gene Family: 11771\n \nContig: 17, Gene Number: 296, Gene Name: 1317, Gene Family: 17638 -----\u003e Contig: 1, Gene Number: 2009, Gene Name: 2174, Gene Family: 17638\nContig: 17, Gene Number: 297, Gene Name: 1318, Gene Family: 20499 -----\u003e Contig: 1, Gene Number: 2008, Gene Name: 2173, Gene Family: 20499\nContig: 17, Gene Number: 299, Gene Name: 1320, Gene Family: 4559 -----\u003e Contig: 1, Gene Number: 2006, Gene Name: 2171, Gene Family: 4559\nContig: 17, Gene Number: 300, Gene Name: 1321, Gene Family: 2057 -----\u003e Contig: 1, Gene Number: 2005, Gene Name: 2170, Gene Family: 2057\n \nContig: 17, Gene Number: 352, Gene Name: 1376, Gene Family: 15701 -----\u003e Contig: 1, Gene Number: 1952, Gene Name: 2110, Gene Family: 15701\nContig: 17, Gene Number: 353, Gene Name: 1378, Gene Family: 2345 -----\u003e Contig: 1, Gene Number: 1951, Gene Name: 2108, Gene Family: 2345\nContig: 17, Gene Number: 355, Gene Name: 1380, Gene Family: 3525 -----\u003e Contig: 1, Gene Number: 1950, Gene Name: 2107, Gene Family: 3525\n \nContig: 17, Gene Number: 358, Gene Name: 1384, Gene Family: 10802 -----\u003e Contig: 1, Gene Number: 1946, Gene Name: 2103, Gene Family: 10802\nContig: 17, Gene Number: 360, Gene Name: 1386, Gene Family: 2027 -----\u003e Contig: 1, Gene Number: 3087, Gene Name: 3292, Gene Family: 2027\nContig: 17, Gene Number: 361, Gene Name: 1387, Gene Family: 15505 -----\u003e Contig: 1, Gene Number: 1943, Gene Name: 2100, Gene Family: 15505\nContig: 17, Gene Number: 362, Gene Name: 1388, Gene Family: 17298 -----\u003e Contig: 1, Gene Number: 1942, Gene Name: 2099, Gene Family: 17298\n \nContig: 17, Gene Number: 413, Gene Name: 1443, Gene Family: 14949 -----\u003e Contig: 1, Gene Number: 1895, Gene Name: 2048, Gene Family: 14949\nContig: 17, Gene Number: 415, Gene Name: 1445, Gene Family: 7327 -----\u003e Contig: 1, Gene Number: 1893, Gene Name: 2046, Gene Family: 7327\nContig: 17, Gene Number: 416, Gene Name: 1446, Gene Family: 22853 -----\u003e Contig: 1, Gene Number: 1892, Gene Name: 2045, Gene Family: 22853\n \nContig: 18, Gene Number: 13, Gene Name: 1489, Gene Family: 7304 -----\u003e Contig: 1, Gene Number: 2791, Gene Name: 2987, Gene Family: 7304\nContig: 18, Gene Number: 14, Gene Name: 1490, Gene Family: 75 -----\u003e Contig: 1, Gene Number: 2790, Gene Name: 2986, Gene Family: 75\nContig: 18, Gene Number: 16, Gene Name: 1492, Gene Family: 15733 -----\u003e Contig: 1, Gene Number: 2788, Gene Name: 2984, Gene Family: 15733\n \nContig: 18, Gene Number: 20, Gene Name: 1496, Gene Family: 22023 -----\u003e Contig: 1, Gene Number: 2784, Gene Name: 2980, Gene Family: 22023\nContig: 18, Gene Number: 21, Gene Name: 1497, Gene Family: 11523 -----\u003e Contig: 1, Gene Number: 2783, Gene Name: 2979, Gene Family: 11523\nContig: 18, Gene Number: 23, Gene Name: 1499, Gene Family: 12117 -----\u003e Contig: 1, Gene Number: 2781, Gene Name: 2977, Gene Family: 12117\nContig: 18, Gene Number: 24, Gene Name: 1500, Gene Family: 14733 -----\u003e Contig: 1, Gene Number: 2780, Gene Name: 2976, Gene Family: 14733\n \nContig: 19, Gene Number: 34, Gene Name: 1613, Gene Family: 6052 -----\u003e Contig: 1, Gene Number: 1548, Gene Name: 1681, Gene Family: 6052\nContig: 19, Gene Number: 35, Gene Name: 1614, Gene Family: 20496 -----\u003e Contig: 1, Gene Number: 1547, Gene Name: 1680, Gene Family: 20496\nContig: 19, Gene Number: 36, Gene Name: 1615, Gene Family: 13673 -----\u003e Contig: 1, Gene Number: 1546, Gene Name: 1679, Gene Family: 13673\n \nContig: 19, Gene Number: 113, Gene Name: 1696, Gene Family: 10461 -----\u003e Contig: 1, Gene Number: 1469, Gene Name: 1599, Gene Family: 10461\nContig: 19, Gene Number: 114, Gene Name: 1697, Gene Family: 10637 -----\u003e Contig: 1, Gene Number: 1468, Gene Name: 1598, Gene Family: 10637\nContig: 19, Gene Number: 116, Gene Name: 1699, Gene Family: 1713 -----\u003e Contig: 1, Gene Number: 1466, Gene Name: 1596, Gene Family: 1713\n \nContig: 2, Gene Number: 56, Gene Name: 1787, Gene Family: 11766 -----\u003e Contig: 1, Gene Number: 1811, Gene Name: 1958, Gene Family: 11766\nContig: 2, Gene Number: 57, Gene Name: 1788, Gene Family: 22527 -----\u003e Contig: 1, Gene Number: 1810, Gene Name: 1957, Gene Family: 22527\nContig: 2, Gene Number: 59, Gene Name: 1790, Gene Family: 3533 -----\u003e Contig: 1, Gene Number: 1808, Gene Name: 1955, Gene Family: 3533\n \nContig: 21, Gene Number: 1, Gene Name: 2081, Gene Family: 1712 -----\u003e Contig: 1, Gene Number: 1267, Gene Name: 1383, Gene Family: 1712\nContig: 21, Gene Number: 2, Gene Name: 2082, Gene Family: 1388 -----\u003e Contig: 1, Gene Number: 1266, Gene Name: 1382, Gene Family: 1388\nContig: 21, Gene Number: 3, Gene Name: 2083, Gene Family: 4208 -----\u003e Contig: 1, Gene Number: 1265, Gene Name: 1381, Gene Family: 4208\nContig: 21, Gene Number: 5, Gene Name: 2085, Gene Family: 9002 -----\u003e Contig: 1, Gene Number: 1263, Gene Name: 1379, Gene Family: 9002\n \nContig: 35, Gene Number: 82, Gene Name: 2893, Gene Family: 13467 -----\u003e Contig: 1, Gene Number: 2876, Gene Name: 3075, Gene Family: 13467\nContig: 35, Gene Number: 83, Gene Name: 2894, Gene Family: 8623 -----\u003e Contig: 1, Gene Number: 2875, Gene Name: 3074, Gene Family: 8623\nContig: 35, Gene Number: 84, Gene Name: 2895, Gene Family: 5063 -----\u003e Contig: 1, Gene Number: 2874, Gene Name: 3073, Gene Family: 5063\n \nContig: 36, Gene Number: 129, Gene Name: 3105, Gene Family: 2416 -----\u003e Contig: 1, Gene Number: 1392, Gene Name: 1515, Gene Family: 2416\nContig: 36, Gene Number: 131, Gene Name: 3107, Gene Family: 15018 -----\u003e Contig: 1, Gene Number: 1394, Gene Name: 1517, Gene Family: 15018\nContig: 36, Gene Number: 132, Gene Name: 3108, Gene Family: 1964 -----\u003e Contig: 1, Gene Number: 1395, Gene Name: 1518, Gene Family: 1964\n \nContig: 38, Gene Number: 34, Gene Name: 3196, Gene Family: 12190 -----\u003e Contig: 1, Gene Number: 433, Gene Name: 462, Gene Family: 12190\nContig: 38, Gene Number: 35, Gene Name: 3197, Gene Family: 2099 -----\u003e Contig: 1, Gene Number: 434, Gene Name: 463, Gene Family: 2099\nContig: 38, Gene Number: 36, Gene Name: 3198, Gene Family: 22664 -----\u003e Contig: 1, Gene Number: 435, Gene Name: 464, Gene Family: 22664\nContig: 38, Gene Number: 37, Gene Name: 3199, Gene Family: 10546 -----\u003e Contig: 1, Gene Number: 436, Gene Name: 465, Gene Family: 10546\n \nContig: 4, Gene Number: 161, Gene Name: 3504, Gene Family: 18678 -----\u003e Contig: 1, Gene Number: 2506, Gene Name: 2687, Gene Family: 18678\nContig: 4, Gene Number: 162, Gene Name: 3505, Gene Family: 8238 -----\u003e Contig: 1, Gene Number: 2507, Gene Name: 2688, Gene Family: 8238\nContig: 4, Gene Number: 163, Gene Name: 3506, Gene Family: 17079 -----\u003e Contig: 1, Gene Number: 2508, Gene Name: 2689, Gene Family: 17079\nContig: 4, Gene Number: 164, Gene Name: 3507, Gene Family: 17425 -----\u003e Contig: 1, Gene Number: 2509, Gene Name: 2690, Gene Family: 17425\n \nContig: 47, Gene Number: 13, Gene Name: 3779, Gene Family: 10129 -----\u003e Contig: 1, Gene Number: 1427, Gene Name: 1553, Gene Family: 10129\nContig: 47, Gene Number: 14, Gene Name: 3780, Gene Family: 13325 -----\u003e Contig: 1, Gene Number: 1426, Gene Name: 1552, Gene Family: 13325\nContig: 47, Gene Number: 15, Gene Name: 3781, Gene Family: 5723 -----\u003e Contig: 1, Gene Number: 1425, Gene Name: 1551, Gene Family: 5723\n \nContig: 6, Gene Number: 43, Gene Name: 4012, Gene Family: 19375 -----\u003e Contig: 1, Gene Number: 2332, Gene Name: 2509, Gene Family: 19375\nContig: 6, Gene Number: 45, Gene Name: 4014, Gene Family: 10756 -----\u003e Contig: 1, Gene Number: 2334, Gene Name: 2511, Gene Family: 10756\nContig: 6, Gene Number: 46, Gene Name: 4015, Gene Family: 7487 -----\u003e Contig: 1, Gene Number: 2335, Gene Name: 2512, Gene Family: 7487\n \nContig: 7, Gene Number: 40, Gene Name: 4068, Gene Family: 5287 -----\u003e Contig: 1, Gene Number: 398, Gene Name: 425, Gene Family: 5287\nContig: 7, Gene Number: 41, Gene Name: 4069, Gene Family: 11959 -----\u003e Contig: 1, Gene Number: 397, Gene Name: 424, Gene Family: 11959\nContig: 7, Gene Number: 42, Gene Name: 4070, Gene Family: 16191 -----\u003e Contig: 1, Gene Number: 396, Gene Name: 423, Gene Family: 16191\nContig: 7, Gene Number: 43, Gene Name: 4071, Gene Family: 16768 -----\u003e Contig: 1, Gene Number: 395, Gene Name: 422, Gene Family: 16768\nContig: 7, Gene Number: 44, Gene Name: 4072, Gene Family: 16704 -----\u003e Contig: 1, Gene Number: 394, Gene Name: 421, Gene Family: 16704\n \nContig: 7, Gene Number: 61, Gene Name: 4089, Gene Family: 5376 -----\u003e Contig: 1, Gene Number: 377, Gene Name: 404, Gene Family: 5376\nContig: 7, Gene Number: 63, Gene Name: 4091, Gene Family: 14087 -----\u003e Contig: 1, Gene Number: 375, Gene Name: 402, Gene Family: 14087\nContig: 7, Gene Number: 64, Gene Name: 4092, Gene Family: 4465 -----\u003e Contig: 1, Gene Number: 374, Gene Name: 401, Gene Family: 4465\n \nNumber of transfers in HMGT 1 = 3\nNumber of transfers in HMGT 2 = 5\nNumber of transfers in HMGT 3 = 3\nNumber of transfers in HMGT 4 = 3\nNumber of transfers in HMGT 5 = 4\nNumber of transfers in HMGT 6 = 5\nNumber of transfers in HMGT 7 = 3\nNumber of transfers in HMGT 8 = 4\nNumber of transfers in HMGT 9 = 3\nNumber of transfers in HMGT 10 = 4\nNumber of transfers in HMGT 11 = 3\nNumber of transfers in HMGT 12 = 3\nNumber of transfers in HMGT 13 = 4\nNumber of transfers in HMGT 14 = 3\nNumber of transfers in HMGT 15 = 3\nNumber of transfers in HMGT 16 = 3\nNumber of transfers in HMGT 17 = 4\nNumber of transfers in HMGT 18 = 3\nNumber of transfers in HMGT 19 = 3\nNumber of transfers in HMGT 20 = 4\nNumber of transfers in HMGT 21 = 4\nNumber of transfers in HMGT 22 = 3\nNumber of transfers in HMGT 23 = 3\nNumber of transfers in HMGT 24 = 5\nNumber of transfers in HMGT 25 = 3\n \nTotal number of HMGTs = 25\nTotal number of genes in HMGTs for this pair = 88\nTotal number of HGTs for this pair = 307\n_______________________________________________________________________"
+contents = multi #entire transfer ->
+#print("------------------------------ 1.")
+#print(contents)
+listOfContigs = getMultiContig(contents) #contig blocks ->
+#print(listOfContigs," ------------------------------ 1.")
+listOfFamily = getEachContigDonor(listOfContigs) #array of donors for each contig
+#print(listOfFamily," ------------------------------ 2.")
+recipientPath = "AeromonasDataset\Genomes\AveroniiHm21.synteny"
+
+listOfLines = look_specific_contig(recipientPath, listOfFamily)
+#(listOfLines, " ------------------------------ 3.")
+
+classification = parse_file_big(listOfLines, listOfFamily)
+#print(classification)
+
+#error for Asobria2014105092720/Asalmonicida01B526

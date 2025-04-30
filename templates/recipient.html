@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<body>
+   <h1>{{donor}} to {{recipient}}</h1>
+   <pre>{{contents}}</pre>
+   <h2>For The Classifications</h2>
+   <table style="margin-bottom: 8px;">
+      <tr>
+         <th>Classification</th>
+         <th>{{donor}}</th>
+         <th>{{recipient}}</th>
+      </tr>
+      {% for class, specificDonor, specificRecipient,_ in classification %}
+      <tr>
+         <td><pre>{{class}}</pre></td>
+         <td><pre>{{specificDonor}}</pre></td>
+         <td><pre>{{specificRecipient}}</pre></td>
+      </tr>
+      {% endfor %}
+   </table>'
+   <h2>For The Entire Transfer</h2>
+   <table style="margin-bottom: 8px;">
+      {% for _, _, _,fullTransfer in classification %}
+      <tr>
+         <td><pre>Transfer | {{fullTransfer}}</pre></td>
+
+      </tr>
+      {% endfor %}
+   </table>
+   <a style="text-decoration: none; color: blue; " href="../"><button>Return</button></a>
+</body>
+<style>
+   table {
+     border-collapse: collapse;
+     width: 100%;
+     font-family: monospace;
+   }
+   
+   th, td {
+     border: 1px solid black;
+     text-align: left;
+     vertical-align: top;
+     padding: 8px;
+     white-space: pre; /* <= 1-word version */
+   }
+   
+   th {
+     min-width: 150px;
+     word-break: keep-all;
+   }
+   
+   td {
+     word-break: break-word;
+   }
+</style>
+   
+</html>

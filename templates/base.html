@@ -1,0 +1,24 @@
+<!doctype html>
+<html>
+   <head><title>{% block title %}HGT{% endblock %}</title></head>
+   <body>
+      <h1>Donors to Recipients</h1>
+
+      <h2>There are {{ data | length }} Donors and {{ total_recipients }} Recipients</h2>
+      <h3>Look at the dictionary:  <a href="{{ url_for('look_struct') }}">LocalStruct</a></h3>
+      <h2> <pre>{{ summary }}</pre> </h2>
+
+      {% for donor, recipients in data.items() %}
+         <h3>Donor : {{ donor }}</h3>
+         
+         <ul>
+         
+            {% for recipient in recipients %}
+               <li><a style="text-decoration: none; color: blue;" href="{{ url_for('look_recipient', donor = donor, recipient = recipient) }}"> {{recipient}}</a></li>
+            {% endfor %}
+      
+         </ul>
+      {% endfor %}
+   
+      </body>
+</html>
