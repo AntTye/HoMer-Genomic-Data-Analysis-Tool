@@ -2,7 +2,9 @@
 <html>
    <head><title>{% block title %}HGT{% endblock %}</title></head>
    <body>
-      <h1>Donors to Recipients</h1>
+      <h1>Donors to Recipients<a href="{{ url_for('export_all_transfers') }}"><button>Export All Transfers to Excel</button>
+       </a>
+       </h1>
 
       <h2>There are {{ data | length }} Donors and {{ total_recipients }} Recipients</h2>
       <h3>Look at the dictionary:  <a href="{{ url_for('look_struct') }}">LocalStruct</a></h3>
