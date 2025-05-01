@@ -1,4 +1,6 @@
-from flask import Flask, render_template
+from flask import Flask, render_template, send_file
+import pandas as pd
+import io
 
 app = Flask(__name__)
 
@@ -55,16 +57,16 @@ parse_file_leaf("AeromonasHMGTs\HoMer_Leaf_to_leaf.txt")
 # Classification of Specific Leaf Transfers
 
 def getMultiContig(content):
-   splitthat = content.split("\n")                           # split lines
-   contigBlock = [[]]                                        # start with one empty block
+   splitthat = content.split("\n")
+   contigBlock = [[]]              
    currBlock = 0
    for i in range(3, len(splitthat)):
       if splitthat[i].strip() == "":
          currBlock += 1
-         contigBlock.append([])                              # adds the new block
+         contigBlock.append([])
          continue
       contigBlock[currBlock].append(splitthat[i])
-   return contigBlock[:-2]                                   #returns the contig blocks, where each contig is a elem
+   return contigBlock[:-2]                          #returns amount of HMGTs for this pair
 
 def getFamilyDonor(content):
    content = "".join(content)
@@ -78,138 +80,226 @@ def getEachContigDonor(content):
    contigBlock = [] # 4 contigs in content [[1,2,3],[],[],[]]
 
    for contig in content:
-
       currBlock = []
-
       for line in contig:
-
          currBlock += getFamilyDonor (line)
-
       contigBlock.append(currBlock)
-
    return contigBlock # get each donors from each contig block
 
-def look_specific_contig(filepath, donorFamilyList):
-   with open (filepath, 'r') as f:
-      content = f.read()
-   lines = (content.split("\n"))
-   contigLines = []
+def getSpecContig(multipleBlocks):
+    specificContigBlocks = [[]]
+    currIndex = 0
+    for block in multipleBlocks:
+        for contig in block:
+            oneItem = ""
+            oneItem = oneItem.join(contig)
+            atArrow = oneItem.split("-> ")
+            specificContigBlocks[currIndex].append(atArrow[1].strip())
+    
+        specificContigBlocks.append([])
+        currIndex += 1
+    return (specificContigBlocks[:-1])              #returns the contig line pertaining to each line in block. "[[Contig: 7, Gene Number: 127, Gene Name: 3873, Gene Family: 22661]]"
+
+def getSpecContigDonor(multipleBlocks):
+    specificContigBlocks = [[]]
+    currIndex = 0
+    for block in multipleBlocks:
+        for contig in block:
+            oneItem = ""
+            oneItem = oneItem.join(contig)
+            atArrow = oneItem.split("-> ")
+            specificContigBlocks[currIndex].append(atArrow[0].strip())
+    
+        specificContigBlocks.append([])
+        currIndex += 1
+    return (specificContigBlocks[:-1])              #returns the contig line pertaining to each line in block. "[[Contig: 7, Gene Number: 127, Gene Name: 3873, Gene Family: 22661]]"
+
+
+def getNameContigFamily(multipleBlocks):
+    nameContigFamily = [[]]
+    currIndex = 0
+    checkIndex = 0
+    for block in multipleBlocks:
+        for contig in block:
+            getList = contig.split(", ")
+            contigNumber = getList[0][8:]
+            nameNumber = getList[2][11:]
+            if nameNumber[checkIndex].isalpha() or nameNumber[checkIndex] == ".":
+                for i in range(len(nameNumber)):
+                    nameNumber = nameNumber[i:]
+                    if nameNumber[checkIndex].isdigit():
+                        break
+            familyNumber = getList[-1][13:]
+            nameContigFamily[currIndex].append([contigNumber,nameNumber,familyNumber])
+            checkIndex = 0
+        nameContigFamily.append([])
+        currIndex +=1
+
+    return nameContigFamily[:-1]                    # Turns "[..[Contig: 7, Gene Number: 127, Gene Name: 3873, Gene Family: 22661]..]" to "[..[[7], [3873], [22661]]..]"
+
+def getContentsFromFile(filepath, specificName, nameContigFamily):
+    with open(filepath, "r") as f:
+        content = f.read()
+    splitIntoSpecificNames = content.split("\t")
+    extract = nameContigFamily[0]
+    getNameNumber = [[]]
+    getNameNumberInt = []
+    currIndex = 0
+    for block in nameContigFamily:
+        toInt = []
+        for contigLine in block:
+            toInt.append(int(contigLine[1]))
+        toIntSorted = sorted(toInt)
+        toStr = []
+        
+        for integer in toIntSorted:
+            strInt = str(integer)
+            toStr.append(strInt)
+
+        getNameNumberInt.append(toIntSorted)
+
+        getNameNumber[currIndex].append(toStr)
+        getNameNumber.append([])
+        currIndex += 1
+
+    compareArray = [[]]
+
+    currIndex = 0
+    secondIndex = 0
+    for block in getNameNumber[:-1]:
+        for nNumber in block[0]:
+            correctString = [f":{nNumber}:_contig_", f".{nNumber}:_contig_", f":peg.{nNumber}:_contig_"]
+            compareArray[currIndex].append(correctString)
+            secondIndex += 1
+        compareArray.append([])
+        currIndex += 1
+        secondIndex = 0
    
-   frontParseFix = []
+    transferArray = [[]]
+    indexToCompare = [[]]
+    currIndex = 0
+    for block in compareArray[:-1]:
+        for singleTransfer in block:
+            for i in range(len(splitIntoSpecificNames)):
+                if any(element in splitIntoSpecificNames[i] for element in singleTransfer ):
+                    transferArray[currIndex].append(splitIntoSpecificNames[i])
+                    indexToCompare[currIndex].append(i)
+               
+        currIndex += 1
+        indexToCompare.append([])
+        transferArray.append([])
+    startSurroundGene = [[]]
+    endSurroundGene = [[]]
+    currIndex = 0
 
-   for i in range(len(donorFamilyList)):
-      currentDonor = ""
-      for j in range(len(donorFamilyList[i])):
-         currentDonor = ":" + donorFamilyList[i][j] + "\t"
-         frontParseFix.append(currentDonor)
-   
-   for contig in donorFamilyList:
-      
-      startAcc = False
-      acceptedLines = ""
+    for block in indexToCompare[:-1]:
+        if block[0] - 2 >= 0:
+            startSurroundGene[currIndex].append(splitIntoSpecificNames[block[0] - 2])
+        if block[0] - 1 >= 0:
+            startSurroundGene[currIndex].append(splitIntoSpecificNames[block[0] - 1])
+        if block[-1] + 1 < len(splitIntoSpecificNames):
+            endSurroundGene[currIndex].append(splitIntoSpecificNames[block[-1] + 1])
+        if block[-1] + 2 < len(splitIntoSpecificNames):
+            endSurroundGene[currIndex].append(splitIntoSpecificNames[block[-1] + 2])
+        
+        startSurroundGene.append([])
+        endSurroundGene.append([])
+        currIndex += 1
+    
+    return(transferArray[:-1],startSurroundGene[:-1],endSurroundGene[:-1]) #results, starting 2 or 1 extra, ending 2 or 1 extra
 
-      for line in lines:
-         if startAcc == True:
-            acceptedLines += line
+def parseResults(rawResult):
+    transferArray = rawResult[0]
+    startSurroundGene = rawResult[1]
+    endSurroundGene = rawResult [2]
 
-         if startAcc == False:
-            if any(element in line for element in frontParseFix):
-               acceptedLines += line
-               startAcc = True
-         
-         if all(element in acceptedLines for element in contig):
-            break
+    finalArr = [[]]
+    finalStart = [[]]
+    finalEnd = [[]]
+    for i in range(len(transferArray)):
+        tranItem = ""
+        startItem = ""
+        endItem = ""
+        
+        tranItem = tranItem.join(transferArray[i])
+        startItem = startItem.join(startSurroundGene[i])
+        endItem = endItem.join(endSurroundGene[i])
 
-      startAcc = False
-      contigLines.append(acceptedLines)
-   return (contigLines) #contigLines
+        finalArr[i].append(tranItem)
+        finalStart[i].append(startItem)
+        finalEnd[i].append(endItem)
 
-def parse_file_big (listOfLines, donorFamilyList):   
+        finalArr.append([])
+        finalStart.append([])
+        finalEnd.append([])
 
-   contigClassification = [] #end results
-   specificDonor = 0
+    numberArr = [[]]
+    numberStart = [[]]
+    numberEnd = [[]]
+    currIndexArr = 0
+    currIndexStartEnd = 0
 
-   for contigLine in listOfLines:
-      classification = parseContigLine(contigLine,donorFamilyList[specificDonor])
-      contigClassification.append(classification)
-      specificDonor += 1
-   return contigClassification
+    for i in range(len(transferArray)):
+      splitFinal = [s.strip() for s in finalArr[i][0].split(":") if s.strip()]
+      splitStart = [s.strip() for s in finalStart[i][0].split(":") if s.strip()]
+      splitEnd = [s.strip() for s in finalEnd[i][0].split(":") if s.strip()]
 
-def parseContigLine(contigLine, donorFamilyList): #singular line, array of numbers for contig
-   longestStart = ""
-   frontParseFix = []
-   for i in range(len(donorFamilyList)):
-      currentDonor = ":" + donorFamilyList[i]
-      frontParseFix.append(currentDonor)
-      
-   for i in range(len(donorFamilyList)):                             
-      splitted = contigLine.split(donorFamilyList[i])[0] + donorFamilyList[i]       
-      if len(splitted) > len(longestStart):
-         longestStart = splitted
-   shortestStart = longestStart
+      for j in range(3, len(splitFinal), 3):
+         actualString = ""
+         for char in splitFinal[j]:
+               if char.isalpha():
+                  break
+               actualString += char
+         numberArr[currIndexArr].append(actualString.strip())
+      numberArr.append([])
+      currIndexArr += 1
 
-   catchCurr = []
-   for i in range(len(donorFamilyList)):
-      catchCurr.append(frontParseFix[i])
+      def extract_number(val):
+         actualString = ""
+         for char in val:
+               if char.isalpha():
+                  break
+               actualString += char
+         return actualString.strip()
 
-      if all(element in splitted for element in catchCurr):
-         split_result = longestStart.split(frontParseFix[i])
-         if len(split_result) > 1:
-               splitted = donorFamilyList[i] + split_result[1]
+      collected_start = []
+      for j in range(3, len(splitStart), 3):
+         collected_start.append(extract_number(splitStart[j]))
+         if len(collected_start) == 2:
+               break
+      while len(collected_start) < 2:
+         collected_start.append("NA")
+      numberStart[currIndexStartEnd].extend(collected_start[::-1])
 
-      if len(shortestStart) > len(splitted):
-         if all(element in splitted for element in donorFamilyList):
-               shortestStart = splitted
+      collected_end = []
+      for j in range(3, len(splitEnd), 3):
+         collected_end.append(extract_number(splitEnd[j]))
+         if len(collected_end) == 2:
+               break
+      while len(collected_end) < 2:
+         collected_end.append("NA")
+      numberEnd[currIndexStartEnd].extend(collected_end)
 
-   
-   recipientFamilyList = getRecipientDonor(shortestStart) #get array of recipient genes
+      numberStart.append([])
+      numberEnd.append([])
+      currIndexStartEnd += 1
 
-   result = checkSymmetry(recipientFamilyList,donorFamilyList)
-   start = result[1]
-   end = result[2] + 1
-   fullReturn = [result[0], donorFamilyList, recipientFamilyList[start:end], recipientFamilyList]
-   return (fullReturn)
+    return (numberArr[:-1], numberStart[:-1], numberEnd[:-1])
+
+def classification(recipients, donors):
+   results = []
+   for i in range(len(recipients)):
+      result = checkSymmetry(recipients[i], donors[i])
+      results.append(result)
+   return results     
+    
 
 def checkSymmetry(recipientFamilyList, donorFamilyList):
-   positions = []
-   for donor in donorFamilyList:
-      index = 0
-      for recipient in recipientFamilyList:
-         if donor == recipient:
-            positions.append(index)
-         index += 1
-   sortedPos = sorted(positions)
-   if sortedPos == positions:
-      return ["Reversed", sortedPos[0], sortedPos[-1]]
-   if sortedPos == positions[::-1]:
-      return ["In Order", sortedPos[0], sortedPos[-1]]
-   return ["Different", sortedPos[0], sortedPos[-1]]
+   if recipientFamilyList == donorFamilyList: return "In Order"
+   if recipientFamilyList[::-1] == donorFamilyList: return "Reversed"
+   if recipientFamilyList != donorFamilyList: return "Different"
 
-def getRecipientDonor (context):
-   listcontext = context.split(":")
-   splitAt = []
-
-   for i in range(0, len(listcontext), 3):
-      splitAt.append(listcontext[i])
-   for i in range(len(splitAt)):
-      stripyou = splitAt[i].split("\t")[0]
-      splitAt[i] = stripyou
-   if splitAt[0][0].isalpha():
-      splitAt = splitAt[1:]
-   return splitAt
 #####################################
-
-
-
-
-
-
-
-
-
-
-
-
 
 @app.route('/')
 def base():
@@ -218,18 +308,112 @@ def base():
 
 @app.route('/<donor>/<recipient>')
 def look_recipient(donor,recipient):
+   recipientPath = f"AeromonasDataset\Genomes\{recipient}.synteny"
+   donorPath = f"AeromonasDataset\Genomes\{donor}.synteny"
    contents = localStruct[donor][recipient] #entire transfer ->
    listOfContigs = getMultiContig(contents) #contig blocks ->
    listOfFamily = getEachContigDonor(listOfContigs) #array of donors for each contig
-   
-   recipientPath = f"AeromonasDataset\Genomes\{recipient}.synteny"
-   listOfLines = look_specific_contig(recipientPath, listOfFamily)
-   
-   classification = parse_file_big(listOfLines, listOfFamily)
-   return render_template('recipient.html', donor = donor, recipient = recipient, contents = contents, classification = classification)
+
+   ########################################################################
+   recipientLines = getSpecContig(listOfContigs)
+   nameContigFamily = getNameContigFamily(recipientLines)
+
+   Results = getContentsFromFile(recipientPath, recipient, nameContigFamily)
+   ParsedResults = parseResults(Results)
+
+   classifications = classification(ParsedResults[0], listOfFamily)
+
+   ########################################################################
+
+   donorLines = getSpecContigDonor(listOfContigs)
+   donorNameContigFamily = getNameContigFamily(donorLines)
+
+   dResults = getContentsFromFile(donorPath, donor, donorNameContigFamily)
+   dParsedResults = parseResults(dResults)
+
+   zipped_results = list(zip(*ParsedResults))  # [(transfer1, start1, end1), ...]
+   combined = list(zip(classifications, listOfFamily, dParsedResults[1], dParsedResults[2], zipped_results))  # [(class1, (transfer1, start1, end1)), ...]
+
+   return render_template(
+    'recipient.html',
+    donor=donor,
+    recipient=recipient,
+    contents=contents,
+    classifications=classifications,
+    results=combined)
+
 
 @app.route('/viewStruct')
 def look_struct():
    return render_template('viewStruct.html', localStruct = localStruct)
 
 
+@app.route('/export_all_transfers')
+def export_all_transfers():
+    all_rows = []
+    for donor, recipient_dict in localStruct.items():
+        for recipient in recipient_dict:
+            try:
+                recipientPath = f"AeromonasDataset/Genomes/{recipient}.synteny"
+                donorPath = f"AeromonasDataset/Genomes/{donor}.synteny"
+                contents = localStruct[donor][recipient]
+                listOfContigs = getMultiContig(contents)
+                listOfFamily = getEachContigDonor(listOfContigs)
+
+                recipientLines = getSpecContig(listOfContigs)
+                nameContigFamily = getNameContigFamily(recipientLines)
+                Results = getContentsFromFile(recipientPath, recipient, nameContigFamily)
+                ParsedResults = parseResults(Results)
+
+                classifications = classification(ParsedResults[0], listOfFamily)
+
+                donorLines = getSpecContigDonor(listOfContigs)
+                donorNameContigFamily = getNameContigFamily(donorLines)
+                dResults = getContentsFromFile(donorPath, donor, donorNameContigFamily)
+                dParsedResults = parseResults(dResults)
+
+                zipped_results = list(zip(*ParsedResults))
+                combined = list(zip(classifications, listOfFamily, dParsedResults[1], dParsedResults[2], zipped_results))
+
+                for clas, donorfamily, dStartList, dEndList, (transferList, rStartList, rEndList) in combined:
+                  
+                  comparision = "Different"
+                  if dStartList[0] == rStartList[0] or dStartList[0] == rStartList[1]:
+                     comparision = "Partial"
+                  if dEndList[0] == rEndList[0] or dEndList[0] == rEndList[1]:
+                     comparision = "Partial"
+                  if dStartList == rStartList and dEndList == rEndList:
+                     comparision = "Conserved"
+                  if dStartList == rEndList and dEndList == rStartList:
+                     comparision = "Flipped Conserved"
+
+                  all_rows.append({
+                  "donor": donor,
+                  "recipient": recipient,
+                  "dstart": dStartList,
+                  "donorList": donorfamily,
+                  "dend": dEndList,
+                  "rstart": rStartList,
+                  "recipientList": transferList,
+                  "rend": rEndList,
+                  "class": clas,
+                  "comparisons": comparision
+               })
+
+            except Exception as e:
+                print(f"Error Here: {donor} -> {recipient}")
+                continue
+
+    df = pd.DataFrame(all_rows)
+
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name="Transfers")
+
+    output.seek(0)
+    return send_file(
+        output,
+        as_attachment=True,
+        download_name="All_HGT_HoMer_Transfers.xlsx",
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )

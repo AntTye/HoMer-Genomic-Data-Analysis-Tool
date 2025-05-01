@@ -10,20 +10,11 @@
          <th>{{donor}}</th>
          <th>{{recipient}}</th>
       </tr>
-      {% for class, specificDonor, specificRecipient,_ in classification %}
+      {% for class, donorList, dstart, dend, (transfer, start, end) in results %}
       <tr>
          <td><pre>{{class}}</pre></td>
-         <td><pre>{{specificDonor}}</pre></td>
-         <td><pre>{{specificRecipient}}</pre></td>
-      </tr>
-      {% endfor %}
-   </table>'
-   <h2>For The Entire Transfer</h2>
-   <table style="margin-bottom: 8px;">
-      {% for _, _, _,fullTransfer in classification %}
-      <tr>
-         <td><pre>Transfer | {{fullTransfer}}</pre></td>
-
+         <td><pre>{{dstart}}{{donorList}}{{dend}}</pre></td>
+         <td><pre>{{start}}{{transfer}}{{end}}</pre></td>
       </tr>
       {% endfor %}
    </table>
