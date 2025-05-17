@@ -86,6 +86,23 @@ def getEachContigDonor(content):
       contigBlock.append(currBlock)
    return contigBlock # get each donors from each contig block
 
+def getSpecContigDonorRecipient(multipleBlocks): #use if want to index 0 for donor and index 1 for recipient
+    specificContigBlocksD = [[]]
+    specificContigBlocksR = [[]]
+    currIndex = 0
+    for block in multipleBlocks:
+        for contig in block:
+            oneItem = ""
+            oneItem = oneItem.join(contig)
+            atArrow = oneItem.split("-> ")
+            specificContigBlocksD[currIndex].append(atArrow[0].strip())
+            specificContigBlocksR[currIndex].append(atArrow[1].strip())
+    
+        specificContigBlocksD.append([])
+        specificContigBlocksR.append([])
+        currIndex += 1
+    return (specificContigBlocksD[:-1], specificContigBlocksR[:-1]) 
+
 def getSpecContig(multipleBlocks):
     specificContigBlocks = [[]]
     currIndex = 0
